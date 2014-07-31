@@ -25,6 +25,9 @@ class ExpTreeItem(object):
         self.parentItem = parent
         self.childItems = []
 
+    def __repr__(self):
+        return ('%s = %s') % tuple(self.itemData)
+
     def appendChild(self, item):
         self.childItems.append(item)
 
@@ -35,7 +38,8 @@ class ExpTreeItem(object):
         return len(self.childItems)
 
     def columnCount(self):
-        return len(self.itemData)
+        # return len(self.itemData)
+        return 2
 
     def data(self, column_idx):
         return self.itemData[column_idx]
@@ -54,8 +58,24 @@ class ExpTreeModel(QAbstractItemModel):
         # self.table.setTable(tableName)
         # self.table.setEditStrategy(QSqlTableModel.OnFieldChange)
         # self.table.select()
-        self.rootItem = ExpTreeItem()
-        self._buildTree(self.rootItem)
+        self.setFilter('')
+        self._buildTree()
+
+    def index(self, row, column, parent=QModelIndex()):
+        branch = parent.internalPointer() if parent.isValid() else self.rootItem
+        return self.createIndex(row, column, branch.child(row))
+
+    def parent(self, index):
+        if not index.isValid():
+            return QModelIndex()
+
+        childItem = index.internalPointer()
+        parentItem = childItem.parent()
+
+        if parentItem == self.rootItem or parentItem == 0:
+            return QModelIndex()
+        else:
+            return self.createIndex(parentItem.row(), 0, parentItem)
 
     def flags(self, index):
         if not index.isValid():
@@ -63,91 +83,99 @@ class ExpTreeModel(QAbstractItemModel):
         return Qt.ItemIsEnabled | Qt.ItemIsSelectable
 
     def data(self, index, role):
-        if not index.isValid() or role != Qt.DisplayRole:
-            return QVariant()
-        query = "select sum(amount) from Expense where strftime('%s') = '%s'"
-        q = QSqlQuery(query % (FORMAT[index['lvl']], index['name']))
-        q.exec_()
-        q.next()
-        return q.value(0)
+        # if not index.isValid() or role != Qt.DisplayRole:
+        #     return QVariant()
+        if index.isValid() and role == Qt.DisplayRole:
+            return index.internalPointer().data(index.column())
 
     def headerData(self, section, orientation, role=Qt.DisplayRole):
-        return self.table.headerData(section, orientation, role)
+        header = ['Year/Month/Day/Exp.', 'Amount']
+        if orientation == Qt.Horizontal and role == Qt.DisplayRole:
+            return header[section]
+        # else:
+        #     return QVariant()
 
     def rowCount(self, parent=QModelIndex()):
-        query = "select count(distinct strftime('%s', date)) from Expense"
-        level = parent.internalPointer()['lvl'] + 1 if parent.isValid() else 0
-        q = QSqlQuery(query % FORMAT[level])
-        q.exec_()
-        q.next()
-        return q.value(0)
-
-    def columnCount(self, parent=QModelIndex(), *args, **kwargs):
-        return self.table.columnCount(parent, *args, **kwargs)
-
-    def index(self, row, column, parent=QModelIndex()):
-        query = "select distinct strftime('%s', date) from Expense order by date"
-        level = parent.internalPointer()['lvl'] + 1 if parent.isValid() else 0
-        parentName = parent.internalPointer()['name'] if parent.isValid() else ''
-        q = QSqlQuery(query % FORMAT[level])
-        q.exec_()
-        q.next()
-        for _ in range(row):
-            q.next()
-        return self.createIndex(row, column, {'lvl': level,
-                                              'name': '%s-%s' %
-                                                      (parentName, q.value(0)),
-                                              'parent': parent,
-                                              'row': row})
-
-    def parent(self, index=QModelIndex()):
-        if index.internalPointer()['lvl'] == 0:
-            return QModelIndex()
+        if parent.column() > 0:
+            return 0
+        if not parent.isValid():
+            parentItem = self.rootItem
         else:
-            return self.createIndex(index['parent']['row'], 0, index['parent'])
+            parentItem = parent.internalPointer()
+        return parentItem.childCount()
+
+    def columnCount(self, parent=QModelIndex()):
+        if parent.isValid():
+            return parent.internalPointer().columnCount()
+        else:
+            return self.rootItem.columnCount()
+
+    def setFilter(self, filter):
+        if not filter:
+            self.filter = "eId glob '*'"
+        else:
+            self.filter = filter
+        print(self.filter)
+        self._buildTree()
+        self.emit(SIGNAL('dataChanged'))
 
     def _exql(self, query):
         q = QSqlQuery(query)
         q.next()
         return q
 
-    def _buildTree(self, rootItem):
-        # self.table.select()
-        # for row_idx in range(self.table.rowCount()):
-        #     data = self.table.data(self.createIndex(row_idx, ))
+    def _buildTree(self):
+        self.rootItem = ExpTreeItem()
         # FIXME: ugly
-        year_q = QSqlQuery("select distinct strftime('%Y', date) from Expense")
+        year_q = QSqlQuery("""select distinct strftime('%%Y', date) from Expense
+                              where %s
+                              order by date""" % self.filter)
         year_q.exec_()
         while year_q.next():
             year = year_q.value(0)
-            print(year)
             aggrAmount = self._exql("""select sum(amount) from Expense
-                                       where strftime('%%Y', date) = '%s'""" % year).value(0)
-            print(aggrAmount)
-            yearItem = ExpTreeItem([year, aggrAmount], rootItem)
-            rootItem.appendChild(yearItem)
+                                       where strftime('%%Y', date) = '%s'
+                                       and %s
+                                       order by date""" % (year, self.filter)).value(0)
+            yearItem = ExpTreeItem([year, aggrAmount], self.rootItem)
+            print(yearItem)
+            self.rootItem.appendChild(yearItem)
             month_q = QSqlQuery("""select distinct strftime('%%m', date) from Expense
-                                   where strftime('%%Y', date) = '%s'""" % year)
+                                   where strftime('%%Y', date) = '%s'
+                                   and %s
+                                   order by date""" % (year, self.filter))
             month_q.exec_()
             while month_q.next():
                 month = month_q.value(0)
                 aggrAmount = self._exql("""select sum(amount) from Expense
-                                           where strftime('%%Y-%%m', date) = '%s-%s'""" % (year,month)).value(0)
+                                           where strftime('%%Y-%%m', date) = '%s-%s'
+                                           and %s
+                                           order by date""" % (year, month, self.filter)).value(0)
                 monthItem = ExpTreeItem([month, aggrAmount], yearItem)
+                print('  %s' % monthItem)
                 yearItem.appendChild(monthItem)
                 day_q = QSqlQuery("""select distinct strftime('%%d', date) from Expense
-                                   where strftime('%%Y-%%m', date) = '%s-%s'""" % (year, month))
+                                     where strftime('%%Y-%%m', date) = '%s-%s'
+                                     and %s
+                                     order by date""" % (year, month, self.filter))
                 day_q.exec_()
                 while day_q.next():
                     day = day_q.value(0)
                     aggrAmount = self._exql("""select sum(amount) from Expense
-                            where strftime('%%Y-%%m-%%d', date) = '%s-%s-%s'""" % (year, month, day)).value(0)
+                                               where strftime('%%Y-%%m-%%d', date) = '%s-%s-%s'
+                                               and %s
+                                               order by date""" % (year, month, day, self.filter)).value(0)
                     dayItem = ExpTreeItem([day, aggrAmount], monthItem)
+                    print('    %s' % dayItem)
                     monthItem.appendChild(dayItem)
-                    exp_q = QSqlQuery("select name, amount from Expense where date = '%s-%s-%s'" % (year, month, day))
+                    exp_q = QSqlQuery("""select name, amount from Expense
+                                         where date = '%s-%s-%s'
+                                         and %s
+                                         order by date""" % (year, month, day, self.filter))
                     exp_q.exec_()
                     while exp_q.next():
                         name = exp_q.value(0)
                         amount = exp_q.value(1)
                         expItem = ExpTreeItem([name, amount], dayItem)
+                        print('      %s' % expItem)
                         dayItem.appendChild(expItem)

@@ -191,6 +191,14 @@ class DBDisplayForm(QDialog, ui_dbdisplayform.Ui_dbDisplayForm):
     def on_deselectAllExpensesButton_clicked(self):
         self.expensesTableView.clearSelection()
 
+    @pyqtSignature('QModelIndex')
+    def on_expensesTreeView_expanded(self):
+        self.expensesTreeView.resizeColumnToContents(0)
+
+    @pyqtSignature('QModelIndex')
+    def on_expensesTreeView_collapsed(self):
+        self.expensesTreeView.resizeColumnToContents(0)
+
 
 class QuickExpensesForm(QMainWindow):
     def __init__(self, parent=None):
@@ -212,7 +220,7 @@ class QuickExpensesForm(QMainWindow):
             self.expTableModel.setHeaderData(section, Qt.Horizontal,
                                         model_old.SECT_NAMES[section])
 
-        self.expTreeModel = model.ExpTreeModel('Expense', self)
+        self.expTreeModel = model.ExpTreeModel(self)
 
         self.taggedExpModel = QSqlTableModel(self)
         self.taggedExpModel.setTable('TaggedExpense')
@@ -236,13 +244,14 @@ class QuickExpensesForm(QMainWindow):
         self.dbDisplayForm.expensesTableView.horizontalHeader().setSortIndicatorShown(True)
 
         self.dbDisplayForm.expensesTreeView.setModel(self.expTreeModel)
-        treeHeader = QHeaderView(Qt.Horizontal)
-        treeHeader.setStretchLastSection(True)
-        treeHeader.setSortIndicatorShown(True)
-        self.dbDisplayForm.expensesTreeView.setHeader(treeHeader)
-        for column in (model_old.EID, model_old.DATE, model_old.COMMENT):
-            self.dbDisplayForm.expensesTreeView.hideColumn(column)
-        self.dbDisplayForm.expensesTreeView.header().moveSection(model_old.NAME, model_old.AMOUNT)
+        self.dbDisplayForm.expensesTreeView.resizeColumnToContents(0)
+        # treeHeader = QHeaderView(Qt.Horizontal)
+        # treeHeader.setStretchLastSection(True)
+        # treeHeader.setSortIndicatorShown(True)
+        # self.dbDisplayForm.expensesTreeView.setHeader(treeHeader)
+        # for column in (model_old.EID, model_old.DATE, model_old.COMMENT):
+        #     self.dbDisplayForm.expensesTreeView.hideColumn(column)
+        # self.dbDisplayForm.expensesTreeView.header().moveSection(model_old.NAME, model_old.AMOUNT)
 
         # self.dbDisplayForm.expensesTreeView.setModel()
         # self.dbDisplayForm.expensesTreeView.setSelectionModel(
@@ -260,6 +269,7 @@ class QuickExpensesForm(QMainWindow):
         self.connect(self.dbDisplayForm.expensesTableView.selectionModel(),
                      SIGNAL('selectionChanged(QItemSelection, QItemSelection)'),
                      self.updateStatusBarAmount)
+        self.connect(self.expTreeModel, SIGNAL('dataChanged'), self.dbDisplayForm.expensesTreeView.reset)
 
         # self.mapper = QDataWidgetMapper(self)
         # self.mapper.setSubmitPolicy(QDataWidgetMapper.ManualSubmit)
@@ -323,6 +333,7 @@ class QuickExpensesForm(QMainWindow):
                 eids.append(str(q.value(0)))
             filter_expr = 'eId in (%s)' % ','.join(eids)
         self.expTableModel.setFilter(filter_expr)
+        self.expTreeModel.setFilter(filter_expr)
         self.resizeColumns()
 
     def updateStatusBarAmount(self):

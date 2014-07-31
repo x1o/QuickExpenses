@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file 'ui/dbdisplayform.ui'
 #
-# Created: Tue Jul 22 22:35:24 2014
+# Created: Thu Jul 31 16:42:13 2014
 #      by: PyQt4 UI code generator 4.10
 #
 # WARNING! All changes made in this file will be lost!
@@ -56,6 +56,7 @@ class Ui_dbDisplayForm(object):
         sizePolicy.setHeightForWidth(self.expensesTreeView.sizePolicy().hasHeightForWidth())
         self.expensesTreeView.setSizePolicy(sizePolicy)
         self.expensesTreeView.setObjectName(_fromUtf8("expensesTreeView"))
+        self.expensesTreeView.header().setCascadingSectionResizes(True)
         self.gridLayout.addWidget(self.expensesTreeView, 0, 0, 1, 1)
         self.dbDisplayTabWidget.addTab(self.treeViewTab, _fromUtf8(""))
         self.tableViewTab = QtGui.QWidget()
@@ -115,7 +116,7 @@ class Ui_dbDisplayForm(object):
         self.gridLayout_3.addWidget(self.splitter, 0, 0, 1, 1)
 
         self.retranslateUi(dbDisplayForm)
-        self.dbDisplayTabWidget.setCurrentIndex(1)
+        self.dbDisplayTabWidget.setCurrentIndex(0)
         QtCore.QMetaObject.connectSlotsByName(dbDisplayForm)
 
     def retranslateUi(self, dbDisplayForm):
