@@ -4,7 +4,8 @@ import logging as log
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 from PyQt4.QtSql import *
-import expenses
+import model_old
+import model
 import ui.ui_inputdlg as ui_inputdlg
 import ui.ui_dbdisplayform as ui_dbdisplayform
 
@@ -24,6 +25,99 @@ INIT_DB_FILENAME = 'db_create.sql'
 # * customize deletion warnings
 # * add tags to the existing records
 # * automatically suggest tags for the given name
+# * drag and drop tags
+
+# * same header for tree and table
+
+# clear comment field on discard / add new
+# add 'approx.' db field / checkbox?
+
+
+class ExpTreeItem(object):
+    def __init__(self, data=None, parent=None):
+        self.itemData = data
+        self.parentItem = parent
+        self.childItems = []
+
+    def appendChild(self, item):
+        self.childItems.append(item)
+
+    def child(self, row_idx):
+        return self.childItems[row_idx]
+
+    def childCount(self):
+        return len(self.childItems)
+
+    def columnCount(self):
+        return len(self.itemData)
+
+    def data(self, column_idx):
+        return self.itemData[column_idx]
+
+    def row(self):
+        return self.parentItem.childItems.index(self) if self.parentItem else 0
+
+    def parent(self):
+        return self.parentItem if self.parentItem else 0
+
+
+class ExpTreeModel(QSqlTableModel):
+    def __init__(self, data=None, parent=None):
+        super(ExpTreeModel, self).__init__(parent)
+        self.rootItem = ExpTreeItem(['ha', 'ho'])
+        self._setupModelData(data.split('\n'), self.rootItem)
+
+    def data(self, index, role):
+        if not index.isValid() or role != Qt.DisplayRole:
+            return QVariant()
+        return index.internalPointer().data(index.column())
+
+    def flags(self, index):
+        if not index.isValid():
+            return 0
+        return Qt.ItemIsEnabled | Qt.ItemIsSelectable
+
+    def headerData(self, section, orientation, role=Qt.DisplayRole):
+        if orientation == Qt.Horizontal and role == Qt.DisplayRole:
+            return self.rootItem.data(section)
+        else:
+            return QVariant()
+
+    def index(self, row, column, parent=QModelIndex()):
+        branch = parent.internalPointer() if parent.isValid() else self.rootItem
+        return self.createIndex(row, column, branch.child(row))
+
+    def parent(self, index):
+        if not index.isValid():
+            return QModelIndex()
+
+        childItem = index.internalPointer()
+        parentItem = childItem.parent()
+
+        if parentItem == self.rootItem:
+            return QModelIndex()
+        else:
+            return self.createIndex(parentItem.row(), 0, parentItem)
+
+    def rowCount(self, parent=QModelIndex()):
+        if parent.column() > 0:
+            return 0
+
+        if not parent.isValid():
+            parentItem = self.rootItem
+        else:
+            parentItem = parent.internalPointer()
+
+        return parentItem.childCount()
+
+    def columnCount(self, parent=QModelIndex()):
+        if parent.isValid():
+            return parent.internalPointer().columnCount()
+        else:
+            self.rootItem.columnCount()
+
+    def _setupModelData(self, lines, parent):
+        pass
 
 
 class InputDlg(QDialog, ui_inputdlg.Ui_inputDialog):
@@ -109,15 +203,16 @@ class QuickExpensesForm(QMainWindow):
         self.tagsModel.setEditStrategy(QSqlTableModel.OnFieldChange)
         self.tagsModel.select()
 
-        self.expModel = QSqlTableModel(self)
-        self.expModel.setTable('Expense')
-        self.expModel.select()
+        self.expTableModel = QSqlTableModel(self)
+        self.expTableModel.setTable('Expense')
+        self.expTableModel.select()
+        self.expTableModel.setEditStrategy(QSqlTableModel.OnFieldChange)
+        self.expTableModel.setSort(0, Qt.AscendingOrder)
+        for section in model_old.SECT_NAMES:
+            self.expTableModel.setHeaderData(section, Qt.Horizontal,
+                                        model_old.SECT_NAMES[section])
 
-        self.expModel.setEditStrategy(QSqlTableModel.OnFieldChange)
-        self.expModel.setSort(0, Qt.AscendingOrder)
-        for section in expenses.SECT_NAMES:
-            self.expModel.setHeaderData(section, Qt.Horizontal,
-                                        expenses.SECT_NAMES[section])
+        self.expTreeModel = model.ExpTreeModel('Expense', self)
 
         self.taggedExpModel = QSqlTableModel(self)
         self.taggedExpModel.setTable('TaggedExpense')
@@ -134,13 +229,25 @@ class QuickExpensesForm(QMainWindow):
 
         self.dbDisplayForm = DBDisplayForm()
         self.dbDisplayForm.tagsListView.setModel(self.tagsModel)
-        self.dbDisplayForm.expensesTableView.setModel(self.expModel)
+        self.dbDisplayForm.expensesTableView.setModel(self.expTableModel)
         # self.dbDisplayForm.tagsListView.selectAll()
-        self.dbDisplayForm.expensesTableView.hideColumn(expenses.EID)
+        self.dbDisplayForm.expensesTableView.hideColumn(model_old.EID)
         self.dbDisplayForm.expensesTableView.horizontalHeader().setStretchLastSection(True)
         self.dbDisplayForm.expensesTableView.horizontalHeader().setSortIndicatorShown(True)
 
+        self.dbDisplayForm.expensesTreeView.setModel(self.expTreeModel)
+        treeHeader = QHeaderView(Qt.Horizontal)
+        treeHeader.setStretchLastSection(True)
+        treeHeader.setSortIndicatorShown(True)
+        self.dbDisplayForm.expensesTreeView.setHeader(treeHeader)
+        for column in (model_old.EID, model_old.DATE, model_old.COMMENT):
+            self.dbDisplayForm.expensesTreeView.hideColumn(column)
+        self.dbDisplayForm.expensesTreeView.header().moveSection(model_old.NAME, model_old.AMOUNT)
+
         # self.dbDisplayForm.expensesTreeView.setModel()
+        # self.dbDisplayForm.expensesTreeView.setSelectionModel(
+        #     self.dbDisplayForm.expensesTableView.selectionModel()
+        # )
 
         self.connect(self.dbDisplayForm.expensesTableView.horizontalHeader(),
                      SIGNAL('sectionClicked(int)'),
@@ -215,22 +322,25 @@ class QuickExpensesForm(QMainWindow):
             while q.next():
                 eids.append(str(q.value(0)))
             filter_expr = 'eId in (%s)' % ','.join(eids)
-        self.expModel.setFilter(filter_expr)
+        self.expTableModel.setFilter(filter_expr)
         self.resizeColumns()
 
     def updateStatusBarAmount(self):
         view = self.dbDisplayForm.expensesTableView
         totalAmount = sum(index.data() for index in view.selectedIndexes()
-                          if index.column() == expenses.AMOUNT)
+                          if index.column() == model_old.AMOUNT)
         self.status.showMessage('Total amount selected: %s' % totalAmount)
 
     def resizeColumns(self):
-        for column in (expenses.EID, expenses.DATE, expenses.AMOUNT,
-                       expenses.NAME, expenses.COMMENT):
+        for column in (model_old.EID, model_old.DATE, model_old.AMOUNT,
+                       model_old.NAME, model_old.COMMENT):
             self.dbDisplayForm.expensesTableView.resizeColumnToContents(column)
 
+        for column in (model_old.AMOUNT, model_old.NAME):
+            self.dbDisplayForm.expensesTreeView.resizeColumnToContents(column)
+
     def sortTable(self, section):
-        self.expModel.sort(section, Qt.AscendingOrder)
+        self.expTableModel.sort(section, Qt.AscendingOrder)
         # self.resizeColumns()
 
     def addRecord(self):
@@ -253,11 +363,11 @@ class QuickExpensesForm(QMainWindow):
             record.append(QSqlField(index, record_dict[index][1]))
             record.setValue(index, record_dict[index][0])
 
-        if not self.expModel.insertRecord(-1, record):
+        if not self.expTableModel.insertRecord(-1, record):
             raise(DBInsertRowError)
 
         # FIXME: this is not thread-safe I guess...
-        q = QSqlQuery('select max(eId) from %s' % self.expModel.tableName())
+        q = QSqlQuery('select max(eId) from %s' % self.expTableModel.tableName())
         q.next()
         eId = q.value(0)
         tags = [tag.data() for tag in self.inputDialog.tagsListView.selectedIndexes()]
@@ -283,7 +393,7 @@ class QuickExpensesForm(QMainWindow):
             sm = self.dbDisplayForm.expensesTableView.selectionModel()
             i = 0
             for index in sm.selectedRows():
-                self.expModel.removeRows(index.row() - i, 1)
+                self.expTableModel.removeRows(index.row() - i, 1)
                 i += 1
 
     def addTag(self):

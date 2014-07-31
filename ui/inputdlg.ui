@@ -344,6 +344,12 @@
        </property>
        <item>
         <widget class="QPlainTextEdit" name="commentsPlainTextEdit">
+         <property name="minimumSize">
+          <size>
+           <width>0</width>
+           <height>50</height>
+          </size>
+         </property>
          <property name="plainText">
           <string/>
          </property>
@@ -419,17 +425,8 @@
     </layout>
    </item>
   </layout>
-  <zorder>nameLabel</zorder>
-  <zorder>dateLabel</zorder>
-  <zorder>amountLabel</zorder>
-  <zorder>nameLineEdit</zorder>
-  <zorder>amountDoubleSpinBox</zorder>
-  <zorder>expensesDateEdit</zorder>
+  <zorder>splitter</zorder>
   <zorder></zorder>
-  <zorder>commentsGroupBox</zorder>
-  <zorder>tagsGroupBox</zorder>
-  <zorder>commentsButton</zorder>
-  <zorder>horizontalSpacer_3</zorder>
  </widget>
  <tabstops>
   <tabstop>amountDoubleSpinBox</tabstop>

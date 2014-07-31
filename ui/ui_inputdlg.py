@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file 'ui/inputdlg.ui'
 #
-# Created: Tue Jul 22 18:15:20 2014
+# Created: Wed Jul 23 01:09:57 2014
 #      by: PyQt4 UI code generator 4.10
 #
 # WARNING! All changes made in this file will be lost!
@@ -173,6 +173,7 @@ class Ui_inputDialog(object):
         self.horizontalLayout_2.setContentsMargins(0, 9, 0, -1)
         self.horizontalLayout_2.setObjectName(_fromUtf8("horizontalLayout_2"))
         self.commentsPlainTextEdit = QtGui.QPlainTextEdit(self.commentsGroupBox)
+        self.commentsPlainTextEdit.setMinimumSize(QtCore.QSize(0, 50))
         self.commentsPlainTextEdit.setPlainText(_fromUtf8(""))
         self.commentsPlainTextEdit.setObjectName(_fromUtf8("commentsPlainTextEdit"))
         self.horizontalLayout_2.addWidget(self.commentsPlainTextEdit)
