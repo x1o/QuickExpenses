@@ -33,7 +33,6 @@ FORMAT = {
 
 class ExpTreeItem(object):
     def __init__(self, data=None, parent=None):
-
         self.itemData = data
         self.parentItem = parent
         self.childItems = []

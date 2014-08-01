@@ -275,7 +275,6 @@ class QuickExpensesForm(QMainWindow):
         self.setCentralWidget(self.mainSplitter)
         self.setWindowTitle('%s v. %s' % (__app_name__, version(True)))
         self.restore_settings()
-        # QTimer.singleShot(0, self.initialLoad) # and proceed to form.show(); when it's done, keep loading.
 
     def filterBySelection(self, view):
         tags = ','.join("'%s'" % index.data() for index in view.selectedIndexes())
