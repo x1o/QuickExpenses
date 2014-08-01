@@ -50,7 +50,7 @@ class ExpTreeItem(object):
 
 class ExpTreeModel(QAbstractItemModel):
     def __init__(self, tableModel, parent=None):
-        super(ExpTreeModel, self).__init__(parent)
+        super().__init__(parent)
         self.table = tableModel
         self.buildTree()
 
@@ -110,14 +110,15 @@ class ExpTreeModel(QAbstractItemModel):
                 item = []
                 for col_idx in (DATE, AMOUNT, NAME):
                     item.append(self.table.data(self.createIndex(row_idx, col_idx)))
+                date, amount, name = item
                 dict_ptr = treeDict
-                for period in item[0].split('-'):
+                for period in date.split('-'):
                     if not period in dict_ptr:
-                        dict_ptr[period] = [{}, item[1]]
+                        dict_ptr[period] = [{}, amount]
                     else:
-                        dict_ptr[period][1] += item[1]
+                        dict_ptr[period][1] += amount
                     dict_ptr = dict_ptr[period][0]
-                dict_ptr[item[2]] = item[1]
+                dict_ptr[name] = amount
             return treeDict
 
         def processTreeDict(treeDict, parent, level):

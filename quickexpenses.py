@@ -29,7 +29,7 @@ INIT_DB_FILENAME = 'db_create.sql'
 
 class InputDlg(QDialog, ui_inputdlg.Ui_inputDialog):
     def __init__(self, parent=None):
-        super(InputDlg, self).__init__(parent)
+        super().__init__(parent)
         self.setupUi(self)
         self.expensesDateEdit.setDate(QDate.currentDate())
         self.commentsGroupBox.setVisible(False)
@@ -73,7 +73,7 @@ class InputDlg(QDialog, ui_inputdlg.Ui_inputDialog):
 
 class DBDisplayForm(QDialog, ui_dbdisplayform.Ui_dbDisplayForm):
     def __init__(self, parent=None):
-        super(DBDisplayForm, self).__init__(parent)
+        super().__init__(parent)
         self.setupUi(self)
         if self.dbDisplayTabWidget.currentIndex() == 0:
             self.deleteButton.setEnabled(False)
@@ -126,7 +126,7 @@ class DBDisplayForm(QDialog, ui_dbdisplayform.Ui_dbDisplayForm):
 
 class QuickExpensesForm(QMainWindow):
     def __init__(self, parent=None):
-        super(QuickExpensesForm, self).__init__(parent)
+        super().__init__(parent)
         self.is_dirty = False
 
         # --- Models ---
@@ -456,7 +456,7 @@ def create_db(fn):
 
 def version(label=False):
     if label:
-        return '-'.join([str(el) for el in __version__])
+        return '-'.join([str(el) for el in __version__]) if __version__[1] else str(__version__[0])
     else:
         return __version__[0]
 
