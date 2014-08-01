@@ -1,3 +1,18 @@
+# This file is part of QuickExpenses.
+#
+# QuickExpenses is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 2 of the License, or
+# (at your option) any later version.
+#
+# QuickExpenses is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with QuickExpenses.  If not, see <http://www.gnu.org/licenses/>.
+
 import os
 import sys
 import logging as log
@@ -5,8 +20,8 @@ from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 from PyQt4.QtSql import *
 import model
-import ui.ui_inputdlg as ui_inputdlg
-import ui.ui_dbdisplayform as ui_dbdisplayform
+from ui.ui_inputdlg import Ui_inputDialog
+from ui.ui_dbdisplayform import Ui_dbDisplayForm
 
 __author__ = 'Dmitry Zotikov'
 __version__ = (1.0, '')
@@ -16,6 +31,7 @@ __organization__ = 'Priyatniye Melochi Soft'
 DB_FILENAME = 'expenses.db'
 INIT_DB_FILENAME = 'db_create.sql'
 
+# TODO: package with setuptools http://pythonhosted.org/setuptools/setuptools.html
 # TODO: make the tree model editable (e.g. recursive deletion, in-place edit, ...)
 # TODO: rebuild tree automatically on model update
 # TODO: suggest the expense's name based on first few letters
@@ -27,7 +43,7 @@ INIT_DB_FILENAME = 'db_create.sql'
 # TODO: drag and drop tags
 
 
-class InputDlg(QDialog, ui_inputdlg.Ui_inputDialog):
+class InputDlg(QDialog, Ui_inputDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setupUi(self)
@@ -71,7 +87,7 @@ class InputDlg(QDialog, ui_inputdlg.Ui_inputDialog):
         self.amountDoubleSpinBox.setFocus()
 
 
-class DBDisplayForm(QDialog, ui_dbdisplayform.Ui_dbDisplayForm):
+class DBDisplayForm(QDialog, Ui_dbDisplayForm):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setupUi(self)

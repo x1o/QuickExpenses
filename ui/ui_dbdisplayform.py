@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file 'ui/dbdisplayform.ui'
 #
-# Created: Thu Jul 31 19:17:45 2014
+# Created: Fri Aug  1 21:44:57 2014
 #      by: PyQt4 UI code generator 4.10
 #
 # WARNING! All changes made in this file will be lost!
