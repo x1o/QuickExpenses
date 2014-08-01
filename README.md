@@ -1,7 +1,7 @@
 QuickExpenses
 =============
 
-Expenses tracking project in PyQT4
+Expenses tracking project in PyQt4
 
 ![QuickExpenses-1.0](http://i.imgur.com/6MqUS88.png)
 
@@ -12,7 +12,7 @@ Expenses tracking project in PyQT4
 
 It stores the data in a SQLite3 database and updates its interface on the fly.
 
-More importantly, it allowed me to practice developing a PyQT4 application (which I did for the first time!),
+More importantly, it allowed me to practice developing a PyQt4 application (which I did for the first time!),
 and by that reason the program itself is not super feature-rich, but rather provides the very basic "raison d'être"
 functionality and may not be free of bugs.  The TODO list currently consists of more than ten points I believe yet
 it's unlikely to get shorter anywhere soon.
