@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file 'ui/dbdisplayform.ui'
 #
-# Created: Thu Jul 31 16:42:13 2014
+# Created: Thu Jul 31 19:17:45 2014
 #      by: PyQt4 UI code generator 4.10
 #
 # WARNING! All changes made in this file will be lost!
@@ -55,6 +55,8 @@ class Ui_dbDisplayForm(object):
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.expensesTreeView.sizePolicy().hasHeightForWidth())
         self.expensesTreeView.setSizePolicy(sizePolicy)
+        self.expensesTreeView.setAlternatingRowColors(True)
+        self.expensesTreeView.setSelectionMode(QtGui.QAbstractItemView.ExtendedSelection)
         self.expensesTreeView.setObjectName(_fromUtf8("expensesTreeView"))
         self.expensesTreeView.header().setCascadingSectionResizes(True)
         self.gridLayout.addWidget(self.expensesTreeView, 0, 0, 1, 1)

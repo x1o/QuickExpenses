@@ -1,7 +1,4 @@
 from PyQt4.QtCore import *
-from PyQt4.QtSql import *
-
-__author__ = 'xio'
 
 SECT_NUM = 5
 EID, DATE, AMOUNT, NAME, COMMENT = range(SECT_NUM)
@@ -52,14 +49,10 @@ class ExpTreeItem(object):
 
 
 class ExpTreeModel(QAbstractItemModel):
-    def __init__(self, parent=None):
+    def __init__(self, tableModel, parent=None):
         super(ExpTreeModel, self).__init__(parent)
-        # self.table = QSqlTableModel(self)
-        # self.table.setTable(tableName)
-        # self.table.setEditStrategy(QSqlTableModel.OnFieldChange)
-        # self.table.select()
-        self.setFilter('')
-        self._buildTree()
+        self.table = tableModel
+        self.buildTree()
 
     def index(self, row, column, parent=QModelIndex()):
         branch = parent.internalPointer() if parent.isValid() else self.rootItem
@@ -110,72 +103,30 @@ class ExpTreeModel(QAbstractItemModel):
         else:
             return self.rootItem.columnCount()
 
-    def setFilter(self, filter):
-        if not filter:
-            self.filter = "eId glob '*'"
-        else:
-            self.filter = filter
-        print(self.filter)
-        self._buildTree()
-        self.emit(SIGNAL('dataChanged'))
+    def buildTree(self):
+        def buildTreeDict():
+            treeDict = {}
+            for row_idx in range(self.table.rowCount()):
+                item = []
+                for col_idx in (DATE, AMOUNT, NAME):
+                    item.append(self.table.data(self.createIndex(row_idx, col_idx)))
+                dict_ptr = treeDict
+                for period in item[0].split('-'):
+                    if not period in dict_ptr:
+                        dict_ptr[period] = [{}, item[1]]
+                    else:
+                        dict_ptr[period][1] += item[1]
+                    dict_ptr = dict_ptr[period][0]
+                dict_ptr[item[2]] = item[1]
+            return treeDict
 
-    def _exql(self, query):
-        q = QSqlQuery(query)
-        q.next()
-        return q
+        def processTreeDict(treeDict, parent, level):
+            for period in sorted(treeDict):
+                amount = treeDict[period] if level == 0 else treeDict[period][1]
+                item = ExpTreeItem([period, amount], parent)
+                parent.appendChild(item)
+                if level != 0:
+                    processTreeDict(treeDict[period][0], item, level-1)
 
-    def _buildTree(self):
         self.rootItem = ExpTreeItem()
-        # FIXME: ugly
-        year_q = QSqlQuery("""select distinct strftime('%%Y', date) from Expense
-                              where %s
-                              order by date""" % self.filter)
-        year_q.exec_()
-        while year_q.next():
-            year = year_q.value(0)
-            aggrAmount = self._exql("""select sum(amount) from Expense
-                                       where strftime('%%Y', date) = '%s'
-                                       and %s
-                                       order by date""" % (year, self.filter)).value(0)
-            yearItem = ExpTreeItem([year, aggrAmount], self.rootItem)
-            print(yearItem)
-            self.rootItem.appendChild(yearItem)
-            month_q = QSqlQuery("""select distinct strftime('%%m', date) from Expense
-                                   where strftime('%%Y', date) = '%s'
-                                   and %s
-                                   order by date""" % (year, self.filter))
-            month_q.exec_()
-            while month_q.next():
-                month = month_q.value(0)
-                aggrAmount = self._exql("""select sum(amount) from Expense
-                                           where strftime('%%Y-%%m', date) = '%s-%s'
-                                           and %s
-                                           order by date""" % (year, month, self.filter)).value(0)
-                monthItem = ExpTreeItem([month, aggrAmount], yearItem)
-                print('  %s' % monthItem)
-                yearItem.appendChild(monthItem)
-                day_q = QSqlQuery("""select distinct strftime('%%d', date) from Expense
-                                     where strftime('%%Y-%%m', date) = '%s-%s'
-                                     and %s
-                                     order by date""" % (year, month, self.filter))
-                day_q.exec_()
-                while day_q.next():
-                    day = day_q.value(0)
-                    aggrAmount = self._exql("""select sum(amount) from Expense
-                                               where strftime('%%Y-%%m-%%d', date) = '%s-%s-%s'
-                                               and %s
-                                               order by date""" % (year, month, day, self.filter)).value(0)
-                    dayItem = ExpTreeItem([day, aggrAmount], monthItem)
-                    print('    %s' % dayItem)
-                    monthItem.appendChild(dayItem)
-                    exp_q = QSqlQuery("""select name, amount from Expense
-                                         where date = '%s-%s-%s'
-                                         and %s
-                                         order by date""" % (year, month, day, self.filter))
-                    exp_q.exec_()
-                    while exp_q.next():
-                        name = exp_q.value(0)
-                        amount = exp_q.value(1)
-                        expItem = ExpTreeItem([name, amount], dayItem)
-                        print('      %s' % expItem)
-                        dayItem.appendChild(expItem)
+        processTreeDict(buildTreeDict(), self.rootItem, 3)

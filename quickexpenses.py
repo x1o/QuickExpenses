@@ -4,120 +4,27 @@ import logging as log
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 from PyQt4.QtSql import *
-import model_old
 import model
 import ui.ui_inputdlg as ui_inputdlg
 import ui.ui_dbdisplayform as ui_dbdisplayform
 
 __author__ = 'Dmitry Zotikov'
-__version__ = (0.1, 'alpha')
+__version__ = (1.0, '')
 __app_name__ = 'QuickExpenses'
 __organization__ = 'Priyatniye Melochi Soft'
 
 DB_FILENAME = 'expenses.db'
 INIT_DB_FILENAME = 'db_create.sql'
 
-# TODO:
-# * import / export csv; actions
-# * custom delegate in table to edit tags
-# * remember selections?
-# * customize shortcuts
-# * customize deletion warnings
-# * add tags to the existing records
-# * automatically suggest tags for the given name
-# * drag and drop tags
-
-# * same header for tree and table
-
-# clear comment field on discard / add new
-# add 'approx.' db field / checkbox?
-
-
-class ExpTreeItem(object):
-    def __init__(self, data=None, parent=None):
-        self.itemData = data
-        self.parentItem = parent
-        self.childItems = []
-
-    def appendChild(self, item):
-        self.childItems.append(item)
-
-    def child(self, row_idx):
-        return self.childItems[row_idx]
-
-    def childCount(self):
-        return len(self.childItems)
-
-    def columnCount(self):
-        return len(self.itemData)
-
-    def data(self, column_idx):
-        return self.itemData[column_idx]
-
-    def row(self):
-        return self.parentItem.childItems.index(self) if self.parentItem else 0
-
-    def parent(self):
-        return self.parentItem if self.parentItem else 0
-
-
-class ExpTreeModel(QSqlTableModel):
-    def __init__(self, data=None, parent=None):
-        super(ExpTreeModel, self).__init__(parent)
-        self.rootItem = ExpTreeItem(['ha', 'ho'])
-        self._setupModelData(data.split('\n'), self.rootItem)
-
-    def data(self, index, role):
-        if not index.isValid() or role != Qt.DisplayRole:
-            return QVariant()
-        return index.internalPointer().data(index.column())
-
-    def flags(self, index):
-        if not index.isValid():
-            return 0
-        return Qt.ItemIsEnabled | Qt.ItemIsSelectable
-
-    def headerData(self, section, orientation, role=Qt.DisplayRole):
-        if orientation == Qt.Horizontal and role == Qt.DisplayRole:
-            return self.rootItem.data(section)
-        else:
-            return QVariant()
-
-    def index(self, row, column, parent=QModelIndex()):
-        branch = parent.internalPointer() if parent.isValid() else self.rootItem
-        return self.createIndex(row, column, branch.child(row))
-
-    def parent(self, index):
-        if not index.isValid():
-            return QModelIndex()
-
-        childItem = index.internalPointer()
-        parentItem = childItem.parent()
-
-        if parentItem == self.rootItem:
-            return QModelIndex()
-        else:
-            return self.createIndex(parentItem.row(), 0, parentItem)
-
-    def rowCount(self, parent=QModelIndex()):
-        if parent.column() > 0:
-            return 0
-
-        if not parent.isValid():
-            parentItem = self.rootItem
-        else:
-            parentItem = parent.internalPointer()
-
-        return parentItem.childCount()
-
-    def columnCount(self, parent=QModelIndex()):
-        if parent.isValid():
-            return parent.internalPointer().columnCount()
-        else:
-            self.rootItem.columnCount()
-
-    def _setupModelData(self, lines, parent):
-        pass
+# TODO: make the tree model editable (e.g. recursive deletion, in-place edit, ...)
+# TODO: rebuild tree automatically on model update
+# TODO: suggest the expense's name based on first few letters
+# TODO: select tags automatically for a predefined set of expenses
+# TODO: import / export csv
+# TODO: custom delegate in table for tag edit
+# TODO: customize shortcuts
+# TODO: customize deletion warnings
+# TODO: drag and drop tags
 
 
 class InputDlg(QDialog, ui_inputdlg.Ui_inputDialog):
@@ -168,6 +75,8 @@ class DBDisplayForm(QDialog, ui_dbdisplayform.Ui_dbDisplayForm):
     def __init__(self, parent=None):
         super(DBDisplayForm, self).__init__(parent)
         self.setupUi(self)
+        if self.dbDisplayTabWidget.currentIndex() == 0:
+            self.deleteButton.setEnabled(False)
 
     @pyqtSignature('')
     def on_filterButton_clicked(self):
@@ -184,12 +93,20 @@ class DBDisplayForm(QDialog, ui_dbdisplayform.Ui_dbDisplayForm):
 
     @pyqtSignature('')
     def on_selectAllExpensesButton_clicked(self):
-        self.expensesTableView.selectAll()
-        self.expensesTableView.setFocus()
+        if self.dbDisplayTabWidget.currentIndex() == 0:
+            view = self.expensesTreeView
+        elif self.dbDisplayTabWidget.currentIndex() == 1:
+            view = self.expensesTableView
+        view.selectAll()
+        view.setFocus()
 
     @pyqtSignature('')
     def on_deselectAllExpensesButton_clicked(self):
-        self.expensesTableView.clearSelection()
+        if self.dbDisplayTabWidget.currentIndex() == 0:
+            view = self.expensesTreeView
+        elif self.dbDisplayTabWidget.currentIndex() == 1:
+            view = self.expensesTableView
+        view.clearSelection()
 
     @pyqtSignature('QModelIndex')
     def on_expensesTreeView_expanded(self):
@@ -199,12 +116,20 @@ class DBDisplayForm(QDialog, ui_dbdisplayform.Ui_dbDisplayForm):
     def on_expensesTreeView_collapsed(self):
         self.expensesTreeView.resizeColumnToContents(0)
 
+    @pyqtSignature('int')
+    def on_dbDisplayTabWidget_currentChanged(self):
+        if self.dbDisplayTabWidget.currentIndex() == 0:
+            self.deleteButton.setEnabled(False)
+        elif self.dbDisplayTabWidget.currentIndex() == 1:
+            self.deleteButton.setEnabled(True)
+
 
 class QuickExpensesForm(QMainWindow):
     def __init__(self, parent=None):
         super(QuickExpensesForm, self).__init__(parent)
-
         self.is_dirty = False
+
+        # --- Models ---
 
         self.tagsModel = QSqlTableModel(self)
         self.tagsModel.setTable('Tag')
@@ -216,15 +141,17 @@ class QuickExpensesForm(QMainWindow):
         self.expTableModel.select()
         self.expTableModel.setEditStrategy(QSqlTableModel.OnFieldChange)
         self.expTableModel.setSort(0, Qt.AscendingOrder)
-        for section in model_old.SECT_NAMES:
+        for section in model.SECT_NAMES:
             self.expTableModel.setHeaderData(section, Qt.Horizontal,
-                                        model_old.SECT_NAMES[section])
+                                        model.SECT_NAMES[section])
 
-        self.expTreeModel = model.ExpTreeModel(self)
+        self.expTreeModel = model.ExpTreeModel(self.expTableModel, self)
 
         self.taggedExpModel = QSqlTableModel(self)
         self.taggedExpModel.setTable('TaggedExpense')
         self.taggedExpModel.select()
+
+        # --- Forms ---
 
         self.inputDialog = InputDlg()
         self.inputDialog.tagsListView.setModel(self.tagsModel)
@@ -238,8 +165,7 @@ class QuickExpensesForm(QMainWindow):
         self.dbDisplayForm = DBDisplayForm()
         self.dbDisplayForm.tagsListView.setModel(self.tagsModel)
         self.dbDisplayForm.expensesTableView.setModel(self.expTableModel)
-        # self.dbDisplayForm.tagsListView.selectAll()
-        self.dbDisplayForm.expensesTableView.hideColumn(model_old.EID)
+        self.dbDisplayForm.expensesTableView.hideColumn(model.EID)
         self.dbDisplayForm.expensesTableView.horizontalHeader().setStretchLastSection(True)
         self.dbDisplayForm.expensesTableView.horizontalHeader().setSortIndicatorShown(True)
 
@@ -258,6 +184,8 @@ class QuickExpensesForm(QMainWindow):
         #     self.dbDisplayForm.expensesTableView.selectionModel()
         # )
 
+        # --- Signals ---
+
         self.connect(self.dbDisplayForm.expensesTableView.horizontalHeader(),
                      SIGNAL('sectionClicked(int)'),
                      self.sortTable)
@@ -268,14 +196,24 @@ class QuickExpensesForm(QMainWindow):
                      lambda: self.filterBySelection(self.dbDisplayForm.tagsListView))
         self.connect(self.dbDisplayForm.expensesTableView.selectionModel(),
                      SIGNAL('selectionChanged(QItemSelection, QItemSelection)'),
-                     self.updateStatusBarAmount)
-        self.connect(self.expTreeModel, SIGNAL('dataChanged'), self.dbDisplayForm.expensesTreeView.reset)
+                     lambda: self.updateStatusBarAmount(self.dbDisplayForm.expensesTableView))
+        self.connect(self.dbDisplayForm.expensesTreeView.selectionModel(),
+                     SIGNAL('selectionChanged(QItemSelection, QItemSelection)'),
+                     lambda: self.updateStatusBarAmount(self.dbDisplayForm.expensesTreeView))
+        self.connect(self.dbDisplayForm.dbDisplayTabWidget,
+                     SIGNAL('currentChanged(int)'),
+                     lambda: self.updateStatusBarAmount(
+                        self.dbDisplayForm.expensesTreeView if \
+                            self.dbDisplayForm.dbDisplayTabWidget.currentIndex() == 0 \
+                        else self.dbDisplayForm.expensesTableView))
 
         # self.mapper = QDataWidgetMapper(self)
         # self.mapper.setSubmitPolicy(QDataWidgetMapper.ManualSubmit)
         # self.mapper.setModel(self.model)
         # self.mapper.addMapping(self.inputDialog.nameLineEdit, expenses.NAME)
         # self.mapper.toFirst()
+
+        # --- Shortcuts ---
 
         self.connect(QShortcut(QKeySequence('Shift+Return'), self),
                      SIGNAL('activated()'),
@@ -308,10 +246,12 @@ class QuickExpensesForm(QMainWindow):
         # helpToolBar.setObjectName('HelpToolBar')
         # helpToolBar.addAction(hel pAboutAction)
 
+        # --- Statusbar ---
+
         self.status = self.statusBar()
         self.status.showMessage('Ready')
 
-        self.filterBySelection(self.dbDisplayForm.tagsListView)
+        # --- Take-off ---
 
         self.mainSplitter = QSplitter(Qt.Horizontal)
         self.mainSplitter.addWidget(self.inputDialog)
@@ -333,21 +273,29 @@ class QuickExpensesForm(QMainWindow):
                 eids.append(str(q.value(0)))
             filter_expr = 'eId in (%s)' % ','.join(eids)
         self.expTableModel.setFilter(filter_expr)
-        self.expTreeModel.setFilter(filter_expr)
+        self.expTreeModel.buildTree()
+        self.dbDisplayForm.expensesTreeView.reset()
         self.resizeColumns()
 
-    def updateStatusBarAmount(self):
-        view = self.dbDisplayForm.expensesTableView
-        totalAmount = sum(index.data() for index in view.selectedIndexes()
-                          if index.column() == model_old.AMOUNT)
+    def updateStatusBarAmount(self, view):
+        if view == self.dbDisplayForm.expensesTreeView:
+            totalAmount = 0
+            for index in view.selectedIndexes():
+                if index.column() == 1 and index.parent() not in view.selectedIndexes():
+                    totalAmount += index.data()
+        elif view == self.dbDisplayForm.expensesTableView:
+            totalAmount = sum(index.data() for index in view.selectedIndexes()
+                              if index.column() == model.AMOUNT)
+        else:
+            log.warn('Unknown view %s!' % view)
         self.status.showMessage('Total amount selected: %s' % totalAmount)
 
     def resizeColumns(self):
-        for column in (model_old.EID, model_old.DATE, model_old.AMOUNT,
-                       model_old.NAME, model_old.COMMENT):
+        for column in (model.EID, model.DATE, model.AMOUNT,
+                       model.NAME, model.COMMENT):
             self.dbDisplayForm.expensesTableView.resizeColumnToContents(column)
 
-        for column in (model_old.AMOUNT, model_old.NAME):
+        for column in (model.AMOUNT, model.NAME):
             self.dbDisplayForm.expensesTreeView.resizeColumnToContents(column)
 
     def sortTable(self, section):
@@ -391,14 +339,17 @@ class QuickExpensesForm(QMainWindow):
             if not self.taggedExpModel.insertRecord(-1, record):
                 raise(DBInsertRowError)
 
+        self.expTreeModel.buildTree()
+        self.dbDisplayForm.expensesTreeView.reset()
         self.resizeColumns()
         self.inputDialog.nameLineEdit.clear()
+        self.inputDialog.commentsPlainTextEdit.clear()
         self.inputDialog.amountDoubleSpinBox.setFocus()
 
     def deleteRecords(self):
         if QMessageBox.question(self, 'Delete records',
                              '''<p>Selected records will be <b>permanently</b>
-                             deleted from the database
+                             deleted from the database.
                              <p> Delete selected records?''',
                              QMessageBox.Yes|QMessageBox.No) == QMessageBox.Yes:
             sm = self.dbDisplayForm.expensesTableView.selectionModel()
@@ -406,6 +357,9 @@ class QuickExpensesForm(QMainWindow):
             for index in sm.selectedRows():
                 self.expTableModel.removeRows(index.row() - i, 1)
                 i += 1
+        self.expTreeModel.buildTree()
+        self.dbDisplayForm.expensesTreeView.reset()
+
 
     def addTag(self):
         q = QSqlQuery('select count(*) from %s where name is null' %
@@ -428,6 +382,14 @@ class QuickExpensesForm(QMainWindow):
             self.tagsModel.removeRows(row - i, 1)
             i += 1
 
+    def helpAbout(self):
+        QMessageBox.about(self, __app_name__,
+                '''<b>%s</b> version %s
+                <p>(\u2184) %s, 2014
+                <p>May the Force be with you.''' % (__app_name__,
+                                                   version(True),
+                                                   __author__))
+
     def createAction(self, text, slot=None, shortcut=None, icon=None,
                      tip=None, checkable=False, signal='triggered()'):
         action = QAction(text, self)
@@ -444,14 +406,6 @@ class QuickExpensesForm(QMainWindow):
         if checkable:
             action.setCheckable(True)
         return action
-
-    def helpAbout(self):
-        QMessageBox.about(self, __app_name__,
-                '''<b>%s</b> version %s
-                <p>(\u2184) %s, 2014
-                <p>May the Force be with you.''' % (__app_name__,
-                                                   version(True),
-                                                   __author__))
 
     def restore_settings(self):
         settings = QSettings()
@@ -516,6 +470,7 @@ if __name__ == '__main__':
     app.setOrganizationName(__organization__)
     app.setApplicationVersion(version(True))
 
+    # db_filename = 'expenses.db'
     db_filename = os.path.join(os.path.dirname(__file__), DB_FILENAME)
     db_create = not QFile.exists(db_filename)
     db = QSqlDatabase.addDatabase('QSQLITE')
