@@ -15,9 +15,10 @@ expenses by providing the interface for
 
 It stores the data in a SQLite3 database; GUI is updated on the fly.
 
-More importantly, it allowed **me** to practice developing a PyQt4 application
-(which I did for the first time in my life), and by that reason the program
-itself is not super feature-rich, but rather provides very basic, "raison
-d'être" functionality and may not be free of bugs.  The TODO list currently
-consists of more than ten points, I believe, yet it's unlikely to get shorter
-anytime soon.
+More importantly, writing QuickExpenses allowed **me** to practice developing a
+PyQt4 application (which I did for the first time in my life), and by that
+reason the program itself is not super feature-rich, but rather provides very
+basic, "raison d'être" functionality and may not be free of bugs.  The TODO list
+currently consists of more than ten points, I believe, yet it's unlikely to get
+shorter anytime soon.
+
